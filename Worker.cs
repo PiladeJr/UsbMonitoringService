@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using UsbMonitoringService.Infrastructure.DeviceInfo;
 using UsbMonitoringService.Infrastructure.Storage;
 using UsbMonitoringService.Infrastructure.UsbDetection;
@@ -29,7 +30,7 @@ namespace UsbMonitoringService
             {
                 if (OperatingSystem.IsWindows())
                 {
-                    _existingUsbDevices.LoadExistingDevices(); 
+                    await _existingUsbDevices.InitializeDevicesAsync();
                 }
             }
             catch (Exception ex)
@@ -37,8 +38,8 @@ namespace UsbMonitoringService
                 _logger.LogError(ex, "Error loading existing USB devices at startup");
             }
 
-            _usbListener.UsbInserted += OnUsbInserted;
-            _usbListener.UsbRemoved += OnUsbRemoved;
+            _usbListener.UsbInserted += drive => _ = OnUsbInserted(drive);
+            _usbListener.UsbRemoved += drive => _ = OnUsbRemoved(drive);
 
             _usbListener.Start();
             try
@@ -46,7 +47,7 @@ namespace UsbMonitoringService
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    _usageMonitor.MonitorDevices();
+                    await _usageMonitor.MonitorDevices();
 
                     await Task.Delay(1000, stoppingToken); 
                 }
@@ -59,7 +60,7 @@ namespace UsbMonitoringService
             }
         }
 
-        private async void OnUsbInserted(string driveLetter)
+        private async Task OnUsbInserted(string driveLetter)
         {
             try
             {
@@ -81,7 +82,7 @@ namespace UsbMonitoringService
                     return;
                 }
 
-                _deviceRegistry.RegisterDevice(device);
+                await _deviceRegistry.RegisterDeviceAsync(device);
 
                 _logger.LogInformation(
                     "USB device registered: {Name} | Original Name: {FabricName} | Serial: {Serial} | Mount: {Mount}",
@@ -96,20 +97,20 @@ namespace UsbMonitoringService
             }
         }
 
-        private void OnUsbRemoved(string driveLetter)
+        private async Task OnUsbRemoved(string driveLetter)
         {
             try
             {
                 _logger.LogInformation("USB removed from drive {Drive}", driveLetter);
 
                 var devices = _deviceRegistry.GetAllDevices();
-
+                
                 var device = devices.FirstOrDefault(d =>
                     string.Equals(d.Device.MountPoint, driveLetter + "\\", StringComparison.OrdinalIgnoreCase));
 
-                if (device != null)
+                if (device != null && device.Device != null)
                 {
-                    _deviceRegistry.RemoveDevice(device.Device.Id);
+                    await _deviceRegistry.RemoveDeviceAsync(device.Device.Id);
 
                     _logger.LogInformation("Device removed from registry: {Device}", device.Device.Name);
                 }

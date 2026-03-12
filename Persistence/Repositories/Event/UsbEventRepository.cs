@@ -22,5 +22,13 @@ namespace UsbMonitoringService.Persistence.Repositories.Event
                           select e)
                 .FirstOrDefaultAsync();
         }
+
+        public async Task<UsbDeviceEventEntity?> GetLastEventBySessionIdAsync(Guid sessionId)
+        {
+            return await _context.Events
+                .Where(e => e.SessionId == sessionId)
+                .OrderByDescending(e => e.Timestamp)
+                .FirstOrDefaultAsync();
+        }
     }
 }

@@ -4,12 +4,14 @@ namespace UsbMonitoringService.Infrastructure.Storage
 {
     public interface IDeviceRegistry
     {
-        void RegisterDevice(UsbDevice device);
+        Task RegisterDeviceAsync(UsbDevice device);
 
-        void RemoveDevice(string deviceId);
+        Task RemoveDeviceAsync(string deviceId);
 
         IReadOnlyCollection<UsbDeviceState> GetAllDevices();
 
         UsbDeviceState? GetDevice(string deviceId);
+
+        Task RestoreDeviceAsync(UsbDevice device,Guid sessionId,long lastObservedUsedSpace);
     }
 }

@@ -6,6 +6,8 @@ namespace UsbMonitoringService.Persistence.Repositories.Event
     {
         Task SaveEventAsync(UsbDeviceEventEntity evt);
 
-        Task<UsbDeviceEventEntity?> GetLastEventAsync(string deviceId);
+        Task <UsbDeviceEventEntity?> GetLastEventAsync(string deviceId);
+
+        Task <UsbDeviceEventEntity?> GetLastEventBySessionIdAsync(Guid sessionId); 
     }
 }
