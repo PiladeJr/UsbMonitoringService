@@ -10,10 +10,9 @@ using UsbMonitoringService.Persistence.Repositories.DeviceSession;
 using UsbMonitoringService.Persistence.Repositories.Event;
 
 var builder = Host.CreateApplicationBuilder(args);
-
-builder.Services.AddDbContext<UsbMonitoringDbContext>(
-    options => options.UseSqlite("Data Source=usb-monitor.db"),
-    ServiceLifetime.Singleton);
+builder.Services.AddDbContextFactory<UsbMonitoringDbContext>(
+    options => options.UseSqlite("Data Source=usb-monitor.db")
+    );
 builder.Services.AddSingleton<IUsbEventRepository, UsbEventRepository>();
 builder.Services.AddSingleton<IUsbDeviceRepository, UsbDeviceRepository>();
 builder.Services.AddSingleton<IUsbSessionRepository, UsbSessionRepository>();

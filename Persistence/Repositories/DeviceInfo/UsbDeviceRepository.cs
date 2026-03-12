@@ -1,11 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 using UsbMonitoringService.Persistence.Entities;
 
 namespace UsbMonitoringService.Persistence.Repositories.DeviceInfo
 {
-    public class UsbDeviceRepository(UsbMonitoringDbContext context) : IUsbDeviceRepository
+    public class UsbDeviceRepository(IDbContextFactory<UsbMonitoringDbContext> contextFactory) : IUsbDeviceRepository
     {
-        private readonly UsbMonitoringDbContext _context = context;
+        private readonly IDbContextFactory<UsbMonitoringDbContext> _contextFactory = contextFactory;
 
         public Task<bool> ExistsAsync(string deviceId)
         {
@@ -19,13 +20,15 @@ namespace UsbMonitoringService.Persistence.Repositories.DeviceInfo
 
         public async Task InsertAsync(UsbDeviceEntity device)
         {
-            _context.Devices.Add(device);
-            await _context.SaveChangesAsync();
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            context.Devices.Add(device);
+            await context.SaveChangesAsync();
         }
 
         private IQueryable<UsbDeviceEntity> QueryByDeviceId(string deviceId)
         {
-            return _context.Devices.Where(d => d.Id == deviceId);
+            using var context = _contextFactory.CreateDbContextAsync();
+            return context.Result.Devices.Where(d => d.Id == deviceId);
         }
     }
 }

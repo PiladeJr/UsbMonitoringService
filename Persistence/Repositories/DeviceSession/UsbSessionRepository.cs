@@ -1,14 +1,16 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 using UsbMonitoringService.Persistence.Entities;
 
 namespace UsbMonitoringService.Persistence.Repositories.DeviceSession
 {
-    public class UsbSessionRepository(UsbMonitoringDbContext context) : IUsbSessionRepository
+    public class UsbSessionRepository(IDbContextFactory<UsbMonitoringDbContext> contextFactory) : IUsbSessionRepository
     {
-        private readonly UsbMonitoringDbContext _context = context;
+        private readonly IDbContextFactory<UsbMonitoringDbContext> _contextFactory = contextFactory;
 
         public async Task<Guid> CreateSessionAsync(string deviceId, long startUsedSpace)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync();
             var session = new UsbDeviceSessionEntity
             {
                 Id = Guid.NewGuid(),
@@ -17,15 +19,16 @@ namespace UsbMonitoringService.Persistence.Repositories.DeviceSession
                 StartUsedSpace = startUsedSpace
             };
 
-            _context.Session.Add(session);
-            await _context.SaveChangesAsync();
+            context.Session.Add(session);
+            await context.SaveChangesAsync();
 
             return session.Id;
         }
 
         public async Task CloseSessionAsync(Guid sessionId, long endUsedSpace)
         {
-            var session = await _context.Session.FindAsync(sessionId);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var session = await context.Session.FindAsync(sessionId);
 
             if (session == null)
                 return;
@@ -33,12 +36,13 @@ namespace UsbMonitoringService.Persistence.Repositories.DeviceSession
             session.EndTimestamp = DateTime.UtcNow;
             session.EndUsedSpace = endUsedSpace;
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
         }
 
         public async Task<List<UsbDeviceSessionEntity>> GetOpenSessionsAsync()
         {
-            return await _context.Session
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.Session
                 .Where(s => s.EndTimestamp == null)
                 .ToListAsync();
         }
