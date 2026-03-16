@@ -44,18 +44,129 @@ Da aggiungere screenshot o output del servizio in esecuzione, mostrando eventi U
 
 Architettura logica del progetto (classi e package principali):
 
-- `Program.cs`: bootstrap dell'applicazione, configurazione DI e avvio del servizio.
-- `Worker.cs`: orchestrazione del flusso di monitoraggio in background.
-- `Monitor/`
-  - `ExistingUsbDevices.cs`: rilevazione dei dispositivi già presenti all'avvio.
-- `Infrastructure/`
-  - `UsbDetection/WmiUsbEventListener.cs`: listener WMI per eventi di connessione/disconnessione USB.
-  - `Storage/IDeviceRegistry.cs`, `Storage/DeviceRegistry.cs`: registro in-memory dei dispositivi monitorati.
-- `Persistence/`
-  - `UsbMonitorDbContext.cs`: `DbContext` Entity Framework Core.
-  - `Repositories/DeviceInfo/` (`IUsbDeviceRepository.cs`, `UsbDeviceRepository.cs`): persistenza metadati dispositivi.
-  - `Repositories/DeviceSession/` (`UsbSessionRepository.cs`): persistenza sessioni di monitoraggio.
-  - `Repositories/Event/` (`UsbEventRepository.cs`): persistenza eventi rilevati.
+```mermaid
+flowchart TD
+    Program["Program.cs"] --> Worker["Worker.cs"]
+
+    subgraph Monitor["Monitor/"]
+        ExistingUsbDevices["ExistingUsbDevices.cs"]
+        DriveUsageProvider["DriveUsageProvider.cs"]
+        UsbUsageMonitor["UsbUsageMonitor.cs"]
+    end
+
+    subgraph Infrastructure["Infrastructure/"]
+        subgraph UsbDetection["UsbDetection/"]
+            IUsbEventListener["IUsbEventListener.cs"]
+            WmiUsbEventListener["WmiUsbEventListener.cs"]
+        end
+
+        subgraph Storage["Storage/"]
+            IDeviceRegistry["IDeviceRegistry.cs"]
+            DeviceRegistry["DeviceRegistry.cs"]
+        end
+
+        subgraph DeviceInfo["DeviceInfo/"]
+            IDeviceInfoProvider["IDeviceInfoProvider.cs"]
+            UsbDeviceInfoProvider["UsbDeviceInfoProvider.cs"]
+        end
+
+        subgraph DriveProvider["DriveProvider/"]
+            DriveInfoProvider["DriveInfoProvider.cs"]
+        end
+    end
+
+    subgraph Models["Models/"]
+        UsbDeviceModel["UsbDevice.cs"]
+        UsbDeviceStateModel["UsbDeviceState.cs"]
+        SecurityEventModel["SecurityEvent.cs"]
+        DiskDriveInfoModel["DiskDriveInfo.cs"]
+    end
+
+    subgraph Persistence["Persistence/"]
+        DbContext["UsbMonitorDbContext.cs"]
+
+        subgraph Entities["Entities/"]
+            UsbDeviceEntity["UsbDeviceEntity.cs"]
+            UsbDeviceSessionEntity["UsbDeviceSessionEntity.cs"]
+            UsbDeviceEventEntity["UsbDeviceEventEntity.cs"]
+        end
+
+        subgraph DeviceInfoRepo["Repositories/DeviceInfo/"]
+            IUsbDeviceRepository["IUsbDeviceRepository.cs"]
+            UsbDeviceRepository["UsbDeviceRepository.cs"]
+        end
+
+        subgraph DeviceSessionRepo["Repositories/DeviceSession/"]
+            IUsbSessionRepository["IUsbSessionRepository.cs"]
+            UsbSessionRepository["UsbSessionRepository.cs"]
+        end
+
+        subgraph EventRepo["Repositories/Event/"]
+            IUsbEventRepository["IUsbEventRepository.cs"]
+            UsbEventRepository["UsbEventRepository.cs"]
+        end
+    end
+
+    Worker --> ExistingUsbDevices
+    Worker --> DriveUsageProvider
+    Worker --> UsbUsageMonitor
+    Worker --> IUsbEventListener
+    IUsbEventListener --> WmiUsbEventListener
+    Worker --> IDeviceRegistry
+    IDeviceRegistry --> DeviceRegistry
+    Worker --> IDeviceInfoProvider
+    IDeviceInfoProvider --> UsbDeviceInfoProvider
+
+    UsbDeviceInfoProvider --> DriveInfoProvider
+    DriveUsageProvider --> DriveInfoProvider
+    ExistingUsbDevices --> DriveInfoProvider
+
+    Worker --> IUsbDeviceRepository
+    Worker --> IUsbSessionRepository
+    Worker --> IUsbEventRepository
+
+    IUsbDeviceRepository --> UsbDeviceRepository
+    IUsbSessionRepository --> UsbSessionRepository
+    IUsbEventRepository --> UsbEventRepository
+
+    UsbDeviceRepository --> DbContext
+    UsbSessionRepository --> DbContext
+    UsbEventRepository --> DbContext
+```
+
+## Schema E/R delle entità principali:
+
+```mermaid
+erDiagram
+    DEVICE ||--o{ SESSION : has
+    SESSION ||--o{ EVENT : generates
+
+    DEVICE {
+        string Id
+        string Name
+        string FabricName
+        string SerialNumber
+        string MountPort
+    }
+
+    SESSION {
+        string Id
+        string DeviceId
+        datetime StartTimestamp
+        datetime EndTimestamp
+        long StartUsedSpace
+        long EndUsedSpace
+    }
+
+    EVENT {
+        string Id
+        string SessionId
+        string EventType
+        datetime Timestamp
+        long Dimension
+        long UsedSpace
+    }
+```
 
 Flusso ad alto livello:
 
