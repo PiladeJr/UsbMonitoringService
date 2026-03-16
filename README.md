@@ -9,6 +9,7 @@ Servizio .NET Worker per monitorare dispositivi USB, registrare eventi di connes
 
 ## table of contents
 - [Introduction](#introduction)
+- [Ciclo di vita operativo (end-to-end)](#ciclo-di-vita-operativo-end-to-end)
 - [Demo](#demo)
 - [Architecture](#architecture)
 - [Features](#features)
@@ -36,6 +37,38 @@ Il flusso principale del servizio include:
 
 Questa architettura permette di avere una visione cronologica completa delle attività avvenute sulle unità esterne, rendendo il servizio adatto a scenari di monitoraggio operativo e controllo. 
 
+### Ciclo di vita operativo (end-to-end)
+
+All'avvio, il servizio inizializza i componenti di monitoraggio, carica lo stato dei dispositivi già collegati e attiva i listener runtime. Quando un dispositivo USB viene connesso, i provider infrastrutturali recuperano metadati e stato del drive; il modulo di monitoraggio apre/aggiorna la sessione e persiste i dati nel database. Durante la permanenza del dispositivo, le operazioni di creazione/rimozione file vengono intercettate e registrate come eventi, aggiornando anche le informazioni di utilizzo dello spazio. Alla disconnessione, la sessione viene chiusa con i valori finali e, in ogni fase rilevante, il sistema emette log/alert operativi.
+
+```mermaid
+architecture-beta
+    group svc(cloud)[Servizio]
+    service worker(server)[Program Worker] in svc
+
+    group mon(server)[Monitoraggio] in svc
+    service monitor(server)[Monitoring Core] in mon
+
+    group infra(server)[Infrastruttura] in svc
+    service infrastructure(server)[Infrastructure Core] in infra
+
+    group db(database)[Database] in svc
+    service repo(database)[Repositories] in db
+
+    group al(cloud)[Alert] in svc
+    service alert(server)[Logging Alerting] in al
+
+    worker:R -- L:monitor
+    worker:B -- T:infrastructure
+    worker:L -- R:repo
+    worker:T -- B:alert
+
+    monitor:R -- L:infrastructure
+    monitor:B -- T:repo
+    infrastructure:R -- L:repo
+```
+
+
 ## Demo
 
 Da aggiungere screenshot o output del servizio in esecuzione, mostrando eventi USB rilevati e salvati nel database.
@@ -45,8 +78,10 @@ Da aggiungere screenshot o output del servizio in esecuzione, mostrando eventi U
 Architettura logica del progetto (classi e package principali):
 
 ```mermaid
-flowchart TD
-    Program["Program.cs"] --> Worker["Worker.cs"]
+flowchart LR
+    subgraph Core["Servizio"]
+        Program["Program.cs"] --> Worker["Worker.cs"]
+    end
 
     subgraph Monitor["Monitor/"]
         ExistingUsbDevices["ExistingUsbDevices.cs"]
@@ -75,21 +110,8 @@ flowchart TD
         end
     end
 
-    subgraph Models["Models/"]
-        UsbDeviceModel["UsbDevice.cs"]
-        UsbDeviceStateModel["UsbDeviceState.cs"]
-        SecurityEventModel["SecurityEvent.cs"]
-        DiskDriveInfoModel["DiskDriveInfo.cs"]
-    end
-
-    subgraph Persistence["Persistence/"]
+    subgraph Database["Database"]
         DbContext["UsbMonitorDbContext.cs"]
-
-        subgraph Entities["Entities/"]
-            UsbDeviceEntity["UsbDeviceEntity.cs"]
-            UsbDeviceSessionEntity["UsbDeviceSessionEntity.cs"]
-            UsbDeviceEventEntity["UsbDeviceEventEntity.cs"]
-        end
 
         subgraph DeviceInfoRepo["Repositories/DeviceInfo/"]
             IUsbDeviceRepository["IUsbDeviceRepository.cs"]
@@ -110,10 +132,13 @@ flowchart TD
     Worker --> ExistingUsbDevices
     Worker --> DriveUsageProvider
     Worker --> UsbUsageMonitor
+
     Worker --> IUsbEventListener
     IUsbEventListener --> WmiUsbEventListener
+
     Worker --> IDeviceRegistry
     IDeviceRegistry --> DeviceRegistry
+
     Worker --> IDeviceInfoProvider
     IDeviceInfoProvider --> UsbDeviceInfoProvider
 
@@ -167,13 +192,6 @@ erDiagram
         long UsedSpace
     }
 ```
-
-Flusso ad alto livello:
-
-1. `Worker` avvia i componenti di detection e bootstrap dei device esistenti.
-2. I listener in `Infrastructure` intercettano eventi runtime (insert/remove e attività file).
-3. I repository in `Persistence` salvano eventi, dispositivi e sessioni sul database.
-4. Il registro dispositivi mantiene lo stato corrente delle periferiche durante la sessione.
 
 ## Features
 
