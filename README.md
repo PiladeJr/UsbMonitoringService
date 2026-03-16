@@ -43,29 +43,38 @@ All'avvio, il servizio inizializza i componenti di monitoraggio, carica lo stato
 
 ```mermaid
 architecture-beta
-    group svc(cloud)[Servizio]
-    service worker(server)[Program Worker] in svc
 
-    group mon(server)[Monitoraggio] in svc
-    service monitor(server)[Monitoring Core] in mon
+    group svc(cloud)[UsbMonitoringService]
 
-    group infra(server)[Infrastruttura] in svc
-    service infrastructure(server)[Infrastructure Core] in infra
+    service worker(server)[Worker] in svc
 
-    group db(database)[Database] in svc
-    service repo(database)[Repositories] in db
+    group detection(server)[Detection] in svc
+    service usbDetection(server)[USB_Detection_WMI] in detection
 
-    group al(cloud)[Alert] in svc
-    service alert(server)[Logging Alerting] in al
+    group monitoring(server)[Monitoring] in svc
+    service usageMonitor(server)[Usage_Monitor_DriveDelta] in monitoring
 
-    worker:R -- L:monitor
-    worker:B -- T:infrastructure
-    worker:L -- R:repo
-    worker:T -- B:alert
+    group registry(server)[Runtime_State] in svc
+    service deviceRegistry(server)[DeviceRegistry] in registry
 
-    monitor:R -- L:infrastructure
-    monitor:B -- T:repo
-    infrastructure:R -- L:repo
+    group persistence(database)[Persistence] in svc
+    service repositories(database)[Repositories] in persistence
+    service database(database)[SQLite_DB] in persistence
+
+    group alert(server)[Alerting] in svc
+    service logging(server)[Logging] in alert
+
+
+    worker:R -- L:usbDetection
+    worker:L -- R:usageMonitor
+
+    usbDetection:B -- T:deviceRegistry
+    usageMonitor:B -- T:deviceRegistry
+
+    deviceRegistry:R -- L:repositories
+    repositories:R -- L:database
+
+    worker:T -- B:logging
 ```
 
 
